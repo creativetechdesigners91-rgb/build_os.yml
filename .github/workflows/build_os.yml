@@ -1,0 +1,54 @@
+name: Build Aevox OS Product
+
+on:
+  workflow_dispatch: # Allows you to trigger the build with a single click button
+
+jobs:
+  compile_os:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Link to Repository Code
+        uses: actions/checkout@v4
+
+      - name: 2. Clear Server Space and Update Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential curl flex g++-multilib gcc-multilib git gnupg gperf imagebuilder lib32readline-dev lib32z1-dev libelf-dev liblz4-tool libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 nasm
+
+      - name: 3. Set Up Global Git Profiles
+        run: |
+          git config --global user.email "aevox_dev@example.com"
+          git config --global user.name "Aevox Developer"
+
+      - name: 4. Download Google Repo Management Tool
+        run: |
+          mkdir -p ~/bin
+          curl https://googleapis.com > ~/bin/repo
+          chmod a+x ~/bin/repo
+          echo "$HOME/bin" >> $GITHUB_PATH
+
+      - name: 5. Download Lightweight Open Source Android Files
+        run: |
+          mkdir workspace && cd workspace
+          ~/bin/repo init -u https://osdn.net -b android-9.0-r2 --depth=1
+          ~/bin/repo sync -c -j$(nproc) --no-tags --no-clone-bundle
+
+      - name: 6. Inject Custom Aevox OS Branding Identifiers
+        run: |
+          cd workspace
+          # Automatically replaces the generic system name with your real Aevox OS brand name
+          sed -i 's/Android-x86/Aevox OS/g' build/make/core/version_defaults.mk
+
+      - name: 7. Compile the Finished Installer Image
+        run: |
+          cd workspace
+          source build/envsetup.sh
+          lunch android_x86_64-userdebug
+          make iso_img -j$(nproc)
+
+      - name: 8. Upload Completed Aevox OS File to Browser
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aevox_OS_Installer
+          path: workspace/out/target/product/x86_64/*.iso
+          retention-days: 5
