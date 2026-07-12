@@ -40,14 +40,22 @@ jobs:
           sed -i 's/quiet/quiet DATA= config_enableHardwareAcceleration=true config_supportsMultiWindow=true config_isLargeScreen=true/g' iso_extracted/boot/grub/grub.cfg
         fi
 
-    - name: Rebuild Branded Aevox Luxury ISO (Using Advanced Xorriso Engine)
-      # Swapped the old genisoimage engine out for native xorriso mapping to completely bypass boot catalog directory blocks
+    - name: Rebuild Branded Aevox Luxury ISO (Multi-Path Fallback Execution)
+      # Injects specific conditional flags so xorriso binds the internal boot file seamlessly 
       run: |
+        if [ -f iso_extracted/boot/isolinux/isolinux.bin ]; then
+          BOOT_BIN="boot/isolinux/isolinux.bin"
+          BOOT_CAT="boot/isolinux/boot.cat"
+        else
+          BOOT_BIN="isolinux/isolinux.bin"
+          BOOT_CAT="isolinux/boot.cat"
+        fi
+        
         xorriso -as mkisofs \
           -V "AEVOX_OS" \
           -r -J --joliet-long \
-          -b isolinux/isolinux.bin \
-          -c isolinux/boot.cat \
+          -b "$BOOT_BIN" \
+          -c "$BOOT_CAT" \
           -no-emul-boot -boot-load-size 4 -boot-info-table \
           -eltorito-alt-boot \
           -e boot/grub/efi.img \
