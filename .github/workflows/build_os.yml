@@ -1,53 +1,64 @@
-name: Build Aevox OS (Higher Android 11 Luxury Edition)
+name: Build Aevox PC OS
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-aevox:
-    runs-on: ubuntu-24.04
-    
+  build-pc-os:
+    # Requires an enterprise-grade self-hosted runner with 350GB+ space and 32GB+ RAM
+    runs-on: self-hosted
+
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+      - name: Checkout Repo
+        uses: actions/checkout@v4
 
-    - name: Download High-Speed Stable Android Base
-      run: |
-        # Fetches a completely compiled, 64-bit hardware-accelerated computer baseline
-        curl -L -o aevox-os-luxury-11.iso "https://blissos.org"
+      - name: Install PC Toolchains & Packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib \
+            gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool \
+            libncurses5-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync \
+            schedtool squashfs-tools xsltproc zip zlib1g-dev x11proto-core-dev \
+            g++ mtools syslinux-utils gettext fdisk
 
-    - name: Hex-Edit Branding & Force Luxury Controls (Zero Code)
-      shell: python
-      run: |
-        import os
+      - name: Configure Git
+        run: |
+          mkdir -p ~/bin
+          curl https://googleapis.com > ~/bin/repo
+          chmod a+x ~/bin/repo
+          echo "$HOME/bin" >> $GITHUB_PATH
+          git config --global user.name "Aevox PC Developer"
+          git config --global user.email "pc@aevox.internal"
 
-        iso_path = "aevox-os-luxury-11.iso"
-        
-        # Read the entire master image safely as a raw binary array
-        with open(iso_path, "rb") as f:
-            data = bytearray(f.read())
-        
-        # Inject your custom brand identity directly across the system headers
-        # Sadded trailing spaces to pad out the length constraints cleanly
-        data = data.replace(b"BlissOS ", b"AevoxOS ")
-        data = data.replace(b"Bliss OS", b"Aevox OS")
-        data = data.replace(b"Bliss", b"Aevox")
-        data = data.replace(b"Android-x86", b"Aevox OS   ")
-        
-        # Overwrites the underlying boot commands to unlock multi-window grids and hardware scaling
-        old_cmd = b"androidboot.hardware=android_x86"
-        new_cmd = b"androidboot.hardware=android_x86 config_enableHardwareAcceleration=true config_supportsMultiWindow=true config_isLargeScreen=true"
-        data = data.replace(old_cmd, new_cmd)
-        
-        # Commit the binary blocks back into the master image path
-        with open(iso_path, "wb") as f:
-            f.write(data)
-        print("Aevox OS Branding Successfully Injected Natively!")
+      - name: Sync Desktop Android Source
+        run: |
+          mkdir -p ~/aevox_pc && cd ~/aevox_pc
+          # Initializing using Bliss OS Android x86 manifest branch
+          repo init -u https://github.com -b bliss-v15.x
+          repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
 
-    - name: Upload Finished Aevox OS Masterpiece
-      uses: actions/upload-artifact@v4
-      with:
-        name: Aevox-OS-Luxury-11-ISO
-        path: aevox-os-luxury-11.iso
-        if-no-files-found: error
-        retention-days: 3
+      - name: Inject Laptop Branding
+        run: |
+          cd ~/aevox_pc
+          # Alter systemic properties to reflect your laptop branding
+          sed -i 's/PRODUCT_MODEL :=.*/PRODUCT_MODEL := Aevox Book OS/g' build/make/core/Makefile || true
+          if [ -f build/make/core/version_defaults.mk ]; then
+            sed -i 's/PLATFORM_DISPLAY_VERSION :=.*/PLATFORM_DISPLAY_VERSION := Aevox PC Pro 1.0/g' build/make/core/version_defaults.mk
+          fi
+
+      - name: Compile ISO Image for Laptops
+        run: |
+          cd ~/aevox_pc
+          source build/envsetup.sh
+          
+          # Target standard 64-bit generic PC layout config
+          lunch bliss_x86_64-userdebug
+          
+          # Build a bootable live ISO file instead of standard smartphone .img chunks
+          m iso_img -j$(nproc --all)
+
+      - name: Export Bootable ISO
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aevox-Laptop-ISO
+          path: ~/aevox_pc/out/target/product/x86_64/*.iso
