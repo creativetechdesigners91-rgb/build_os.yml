@@ -18,17 +18,17 @@ jobs:
         df -h
 
     - name: Configure 32-Bit Architecture & Legacy Repos
-      # Dynamically maps legacy Ubuntu archives into Ubuntu 24.04 for structural AOSP compatibility
+      # Corrected the mirror path string to old-releases.ubuntu.com to safely pull legacy ncurses dependencies
       run: |
         sudo dpkg --add-architecture i386
-        echo "deb http://ubuntu.com focal-security main universe" | sudo tee /etc/apt/sources.list.d/focal-security.list
+        echo "deb http://old-releases.ubuntu.com/ubuntu focal-security main universe" | sudo tee /etc/apt/sources.list.d/focal-security.list
         sudo apt-get update
 
     - name: Install Android Dependencies (Ubuntu 24.04 Fixed)
       run: |
         sudo apt-get update
-        # Replaced modern missing packets with localized version-mapped equivalents
-        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib \
+        # Installs the precise development binaries needed to link the Android tree compiler layers
+        sudo apt-get install -y --allow-downgrades bc bison build-essential ccache curl flex g++-multilib \
           gcc-multilib git gnupg gperf lib32readline-dev \
           lib32z1-dev liblz4-tool libncurses-dev libsdl1.2-dev \
           libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool \
