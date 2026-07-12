@@ -53,18 +53,24 @@ jobs:
         key: ccache-aevox-11-${{ runner.os }}-${{ github.sha }}
         restore-keys: ccache-aevox-11-${{ runner.os }}-
 
-    - name: Force Git to Ignore Dead OSDN Domains
-      # This forces git to instantly redirect any accidental internal osdn links back to safe github mirrors
+    - name: Enforce Global Git Mapping Overrides
       run: |
         git config --global url."https://github.com".insteadOf "https://osdn.net"
         git config --global url."https://github.com".insteadOf "git://git.osdn.net/gitroot/android-x86/"
 
-    - name: Download LineageOS-x86 Source (Clean GitHub-Only Tree)
+    - name: Download LineageOS-x86 Source & Force Hard Coded Purge
       run: |
         git config --global user.name "Aevox OS Developer"
         git config --global user.email "developer@aevox.internal"
-        # Uses LineageOS 18.1 (Android 11) which has completely scrubbed old dead server code maps
+        
+        # 1. Initialize the baseline directory 
         ~/bin/repo init -u https://github.commanifest.git -b lineage-18.1 --depth=1
+        
+        # 2. Hard-purge any hidden metadata links hiding inside the localized .repo file arrays
+        find .repo/manifests -type f -name "*.xml" -exec sed -i 's|https://osdn.net|https://github.com|g' {} +
+        find .repo/manifests -type f -name "*.xml" -exec sed -i 's|git://git.osdn.net/gitroot/android-x86/|https://github.com|g' {} +
+        
+        # 3. Safe sync processing loop execution
         ~/bin/repo sync -c -j$(nproc) --no-tags --no-clone-bundle --force-sync
 
     - name: Inject Luxury Branding & Visual Enhancements
@@ -105,6 +111,3 @@ jobs:
         path: out/target/product/x86_64/aevox-os-luxury-11.iso
         if-no-files-found: error
         retention-days: 3
-
-
-
