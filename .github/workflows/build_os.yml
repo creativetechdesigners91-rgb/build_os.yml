@@ -40,10 +40,10 @@ jobs:
           sed -i 's/quiet/quiet DATA= config_enableHardwareAcceleration=true config_supportsMultiWindow=true config_isLargeScreen=true/g' iso_extracted/boot/grub/grub.cfg
         fi
 
-    - name: Rebuild Branded Aevox Luxury ISO (Fixed Boot Paths)
+    - name: Rebuild Branded Aevox Luxury ISO (Fixed Path Mapping)
       run: |
-        # Corrected file pathway arguments to match the nested internal boot structure layout perfectly
-        mkisofs -V "AEVOX_OS" -R -b boot/isolinux/isolinux.bin -c boot/isolinux/boot.cat \
+        # Stripped the incorrect 'boot/' paths so genisoimage can map isolinux flawlessly
+        mkisofs -V "AEVOX_OS" -R -b isolinux/isolinux.bin -c isolinux/boot.cat \
           -no-emul-boot -boot-load-size 4 -boot-info-table \
           -eltorito-alt-boot -e boot/grub/efi.img -no-emul-boot \
           -o aevox-os-luxury-11.iso iso_extracted/
