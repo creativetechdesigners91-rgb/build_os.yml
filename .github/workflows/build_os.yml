@@ -1,64 +1,72 @@
-name: Build Aevox PC OS
+name: Build Aevox PC OS (ARM64 Laptop Edition)
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-pc-os:
+  build-laptop-os:
     # Requires an enterprise-grade self-hosted runner with 350GB+ space and 32GB+ RAM
     runs-on: self-hosted
 
     steps:
-      - name: Checkout Repo
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install PC Toolchains & Packages
+      - name: Install Compilers and Build Tools
         run: |
           sudo apt-get update
           sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib \
             gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool \
             libncurses5-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync \
-            schedtool squashfs-tools xsltproc zip zlib1g-dev x11proto-core-dev \
-            g++ mtools syslinux-utils gettext fdisk
+            schedtool squashfs-tools xsltproc zip zlib1g-dev fdisk mtools
 
-      - name: Configure Git
+      - name: Setup Google Repo
         run: |
           mkdir -p ~/bin
           curl https://googleapis.com > ~/bin/repo
           chmod a+x ~/bin/repo
           echo "$HOME/bin" >> $GITHUB_PATH
-          git config --global user.name "Aevox PC Developer"
-          git config --global user.email "pc@aevox.internal"
+          git config --global user.name "Aevox PC Team"
+          git config --global user.email "core@aevox.pc"
 
-      - name: Sync Desktop Android Source
+      - name: Sync Android Source for Tablets/Laptops
         run: |
           mkdir -p ~/aevox_pc && cd ~/aevox_pc
-          # Initializing using Bliss OS Android x86 manifest branch
-          repo init -u https://github.com -b bliss-v15.x
+          # Initializing with Android 12L/13/14 which natively supports taskbars and multi-window
+          repo init -u https://github.com -b lineage-21.0 --git-lfs
           repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
 
-      - name: Inject Laptop Branding
+      - name: Inject JioOS/PrimeOS-Style Laptop Architecture
         run: |
           cd ~/aevox_pc
-          # Alter systemic properties to reflect your laptop branding
-          sed -i 's/PRODUCT_MODEL :=.*/PRODUCT_MODEL := Aevox Book OS/g' build/make/core/Makefile || true
+          
+          # 1. Branding: Rename System Strings for a Laptop Identity
+          sed -i 's/PRODUCT_MODEL :=.*/PRODUCT_MODEL := Aevox Book Pro/g' build/make/core/Makefile || true
           if [ -f build/make/core/version_defaults.mk ]; then
-            sed -i 's/PLATFORM_DISPLAY_VERSION :=.*/PLATFORM_DISPLAY_VERSION := Aevox PC Pro 1.0/g' build/make/core/version_defaults.mk
+            sed -i 's/PLATFORM_DISPLAY_VERSION :=.*/PLATFORM_DISPLAY_VERSION := Aevox PC OS 1.0/g' build/make/core/version_defaults.mk
           fi
 
-      - name: Compile ISO Image for Laptops
+          # 2. Desktop Mode: Force Multi-Window (Freeform) and Taskbar natively on boot
+          # This replicates PrimeOS windowing logic by altering the default framework behaviors
+          FRAMEWORK_RES="frameworks/base/core/res/res/values/config.xml"
+          if [ -f "$FRAMEWORK_RES" ]; then
+            # Enable Freeform Window Management globally
+            sed -i 's/<bool name="config_freeformWindowManagement">false<\/bool>/<bool name="config_freeformWindowManagement">true<\/bool>/g' $FRAMEWORK_RES
+            # Enable support for desktop-style external/large displays
+            sed -i 's/<bool name="config_hasRecents">false<\/bool>/<bool name="config_hasRecents">true<\/bool>/g' $FRAMEWORK_RES
+          fi
+
+      - name: Compile Target Image
         run: |
           cd ~/aevox_pc
           source build/envsetup.sh
           
-          # Target standard 64-bit generic PC layout config
-          lunch bliss_x86_64-userdebug
-          
-          # Build a bootable live ISO file instead of standard smartphone .img chunks
-          m iso_img -j$(nproc --all)
+          # Change this to your exact MediaTek/Rockchip Laptop motherboard target config tree
+          lunch generic_arm64-userdebug
+          m target-files-package -j$(nproc --all)
 
-      - name: Export Bootable ISO
+      - name: Upload Aevox PC Images
         uses: actions/upload-artifact@v4
         with:
-          name: Aevox-Laptop-ISO
-          path: ~/aevox_pc/out/target/product/x86_64/*.iso
+          name: Aevox-PC-OS-Package
+          path: ~/aevox_pc/out/target/product/generic_arm64/*.img
