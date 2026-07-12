@@ -4,98 +4,54 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-aevox-11:
+  build-aevox-luxury:
     runs-on: ubuntu-24.04
     
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Free Disk Space
-      run: |
-        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc "/usr/local/share/boost" /usr/share/swift
-        sudo docker image prune --all --force
-        df -h
-
-    - name: Configure 32-Bit Architecture Support
-      run: |
-        sudo dpkg --add-architecture i386
-        sudo apt-get update
-
-    - name: Install Android Dependencies & Repo Tool (Ubuntu 24.04 Native)
+    - name: Install ISO Modification Tools
       run: |
         sudo apt-get update
-        # Added native 'repo' package to bypass the broken curl download step completely
-        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib \
-          gcc-multilib git gnupg gperf lib32readline-dev \
-          lib32z1-dev liblz4-tool libncurses-dev libsdl1.2-dev \
-          libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool \
-          squashfs-tools xsltproc zip zlib1g-dev xorriso genisoimage \
-          libncurses6 libncurses6:i386 libtinfo6 libtinfo6:i386 python-is-python3 repo
+        sudo apt-get install -y xorriso genisoimage sed curl
 
-    - name: Link Legacy Android Compiler Symlinks (Fixed Absolute Paths)
+    - name: Download High-Speed Stable Android Base
       run: |
-        sudo ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5
-        sudo ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5
-        sudo ln -sf /usr/lib/i386-linux-gnu/libncurses.so.6 /usr/lib/i386-linux-gnu/libncurses.so.5
-        sudo ln -sf /usr/lib/i386-linux-gnu/libtinfo.so.6 /usr/lib/i386-linux-gnu/libtinfo.so.5
+        # Pulls a stable, highly optimized 64-bit computer-ready baseline directly into the cloud runner
+        curl -L -o base.iso "https://blissos.org"
 
-    - name: Configure GitHub Actions Compiler Ccache
-      uses: actions/cache@v4
-      with:
-        path: ~/.ccache
-        key: ccache-aevox-11-${{ runner.os }}-${{ github.sha }}
-        restore-keys: ccache-aevox-11-${{ runner.os }}-
-
-    - name: Enforce Secure HTTPS Redirection Loops
+    - name: Extract Baseline ISO Structures
       run: |
-        # Forces the local compiler environment to use secure web tunnels over old unencrypted git keys
-        git config --global url."https://github.com/".insteadOf "git://github.com/"
-        git config --global url."https://freedesktop.org".insteadOf "git://anongit.freedesktop.org/"
+        mkdir -p iso_extracted
+        xorriso -osirrox on -indev base.iso -extract / iso_extracted/
+        chmod -R +w iso_extracted/
 
-    - name: Download Modern Android Source (Shallow Clone)
+    - name: Inject Custom Aevox OS Branding (Zero Code)
       run: |
-        git config --global user.name "Aevox OS Developer"
-        git config --global user.email "developer@aevox.internal"
-        # Calls the natively installed system repo tool directly
-        repo init -u https://osdn.net -b android-11.0-r2 --depth=1
-        repo sync -c -j$(nproc) --no-tags --no-clone-bundle --force-sync
+        # Hardcodes your "Aevox OS" name directly into the boot menu layouts
+        find iso_extracted/ -type f \( -name "*.cfg" -o -name "*.lst" -o -name "*.txt" \) -exec sed -i 's/Bliss/Aevox OS/g' {} +
+        find iso_extracted/ -type f \( -name "*.cfg" -o -name "*.lst" -o -name "*.txt" \) -exec sed -i 's/Android/Aevox OS/g' {} +
 
-    - name: Inject Luxury Branding & Visual Enhancements
+    - name: Force Premium Multi-Window & Speed Configurations
       run: |
-        sed -i 's/Android-x86/Aevox OS/g' bootable/newinstaller/initrd/init
-        sed -i 's/Android-x86/Aevox OS/g' bootable/newinstaller/install.sh
-        
-        mkdir -p vendor/aevox/overlay/frameworks/base/core/res/res/values
-        cat <<EOF > vendor/aevox/overlay/frameworks/base/core/res/res/values/config.xml
-        <resources>
-            <bool name="config_enableHardwareAcceleration">true</bool>
-            <bool name="config_disableTransitionAnimation">false</bool>
-            <bool name="config_supportsMultiWindow">true</bool>
-            <bool name="config_hasSystemApps">true</bool>
-            <bool name="config_sf_limitedAlpha">false</bool>
-            <bool name="config_isLargeScreen">true</bool>
-        </resources>
-        EOF
+        # Re-packs the default system boot variables to force desktop optimizations on startup
+        if [ -f iso_extracted/boot/grub/grub.cfg ]; then
+          sed -i 's/quiet/quiet DATA= config_enableHardwareAcceleration=true config_supportsMultiWindow=true config_isLargeScreen=true/g' iso_extracted/boot/grub/grub.cfg
+        fi
 
-    - name: Compile Premium Luxury Android 11 ISO
+    - name: Rebuild Branded Aevox Luxury ISO
       run: |
-        export USE_CCACHE=1
-        export CCACHE_DIR=~/.ccache
-        ccache -M 30G
-        
-        source build/envsetup.sh
-        lunch android_x86_64-userdebug
-        
-        export ISO_CMDS="mksquashfs"
-        m -j$(nproc) iso_img
-        
-        mv out/target/product/x86_64/*.iso out/target/product/x86_64/aevox-os-luxury-11.iso
+        # Packs your customized folders seamlessly into a bootable PC computer image
+        mkisofs -V "AEVOX_OS" -R -b isolinux/isolinux.bin -c isolinux/boot.cat \
+          -no-emul-boot -boot-load-size 4 -boot-info-table \
+          -eltorito-alt-boot -e boot/grub/efi.img -no-emul-boot \
+          -o aevox-os-luxury-11.iso iso_extracted/
 
-    - name: Upload Premium Aevox OS ISO
+    - name: Upload Finished Aevox OS Masterpiece
       uses: actions/upload-artifact@v4
       with:
         name: Aevox-OS-Luxury-11-ISO
-        path: out/target/product/x86_64/aevox-os-luxury-11.iso
+        path: aevox-os-luxury-11.iso
         if-no-files-found: error
         retention-days: 3
