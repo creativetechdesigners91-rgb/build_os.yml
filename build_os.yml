@@ -53,18 +53,24 @@ jobs:
         key: ccache-aevox-11-${{ runner.os }}-${{ github.sha }}
         restore-keys: ccache-aevox-11-${{ runner.os }}-
 
-    - name: Download Bliss OS Source (Active & Healthy Manifest Mirror)
+    - name: Force Git to Ignore Dead OSDN Domains
+      # This forces git to instantly redirect any accidental internal osdn links back to safe github mirrors
+      run: |
+        git config --global url."https://github.com".insteadOf "https://osdn.net"
+        git config --global url."https://github.com".insteadOf "git://git.osdn.net/gitroot/android-x86/"
+
+    - name: Download LineageOS-x86 Source (Clean GitHub-Only Tree)
       run: |
         git config --global user.name "Aevox OS Developer"
         git config --global user.email "developer@aevox.internal"
-        # Bypasses the dead OSDN links permanently by pulling from functional Bliss OS 14 code structures
-        ~/bin/repo init -u https://github.com/BlissRoms-x86/manifest.git -b arcadia-x86 --depth=1
+        # Uses LineageOS 18.1 (Android 11) which has completely scrubbed old dead server code maps
+        ~/bin/repo init -u https://github.commanifest.git -b lineage-18.1 --depth=1
         ~/bin/repo sync -c -j$(nproc) --no-tags --no-clone-bundle --force-sync
 
     - name: Inject Luxury Branding & Visual Enhancements
       run: |
-        sed -i 's/BlissOS/Aevox OS/g' bootable/newinstaller/initrd/init || true
-        sed -i 's/BlissOS/Aevox OS/g' bootable/newinstaller/install.sh || true
+        sed -i 's/LineageOS/Aevox OS/g' bootable/newinstaller/initrd/init || true
+        sed -i 's/LineageOS/Aevox OS/g' bootable/newinstaller/install.sh || true
         
         mkdir -p vendor/aevox/overlay/frameworks/base/core/res/res/values
         cat <<EOF > vendor/aevox/overlay/frameworks/base/core/res/res/values/config.xml
@@ -85,7 +91,7 @@ jobs:
         ccache -M 30G
         
         source build/envsetup.sh
-        lunch android_x86_64-userdebug
+        lunch lineage_x86_64-userdebug
         
         export ISO_CMDS="mksquashfs"
         m -j$(nproc) iso_img
@@ -99,4 +105,6 @@ jobs:
         path: out/target/product/x86_64/aevox-os-luxury-11.iso
         if-no-files-found: error
         retention-days: 3
+
+
 
