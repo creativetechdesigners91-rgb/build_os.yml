@@ -1,15 +1,15 @@
-name: Build Aevox OS (Ultra-Light Android Edition)
+name: Build Aevox OS (Higher Android 11 Luxury Edition)
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-aevox-light:
+  build-aevox-11:
     runs-on: ubuntu-24.04
     
     steps:
     - name: Checkout Repository
-      uses: actions/checkout@v4 # Uses Node 24 natively
+      uses: actions/checkout@v4
 
     - name: Free Disk Space
       run: |
@@ -17,78 +17,91 @@ jobs:
         sudo docker image prune --all --force
         df -h
 
-    - name: Install Android Dependencies
+    - name: Configure 32-Bit Architecture Support
+      run: |
+        sudo dpkg --add-architecture i386
+        sudo apt-get update
+
+    - name: Install Android Dependencies (Ubuntu 24.04 Verified)
       run: |
         sudo apt-get update
         sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib \
-          gcc-multilib git gnupg gperf lib32ncurses5-dev lib32readline-dev \
-          lib32z1-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev \
+          gcc-multilib git gnupg gperf lib32readline-dev \
+          lib32z1-dev liblz4-tool libncurses-dev libsdl1.2-dev \
           libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool \
-          squashfs-tools xsltproc zip zlib1g-dev xorriso genisoimage
+          squashfs-tools xsltproc zip zlib1g-dev xorriso genisoimage \
+          libncurses6 libncurses6:i386 libtinfo6 libtinfo6:i386 python-is-python3 ca-certificates
 
-    - name: Configure GitHub Actions Compiler Ccache
-      uses: actions/cache@v4 # Uses Node 24 natively
-      with:
-        path: ~/.ccache
-        key: ccache-aevox-light-${{ runner.os }}-${{ github.sha }}
-        restore-keys: ccache-aevox-light-${{ runner.os }}-
-
-    - name: Configure Google Repo Tool
+    - name: Install and Map Standalone Google Repo Utility
+      # Fixes the variable conflict pathing loops by creating a distinct, isolated standalone execution path
       run: |
         mkdir -p ~/bin
         curl https://googleapis.com > ~/bin/repo
         chmod a+x ~/bin/repo
         echo "$HOME/bin" >> $GITHUB_PATH
 
-    - name: Download Android Source (Shallow Clone)
+    - name: Link Legacy Android Compiler Symlinks (Fixed Absolute Paths)
+      run: |
+        sudo ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5
+        sudo ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5
+        sudo ln -sf /usr/lib/i386-linux-gnu/libncurses.so.6 /usr/lib/i386-linux-gnu/libncurses.so.5
+        sudo ln -sf /usr/lib/i386-linux-gnu/libtinfo.so.6 /usr/lib/i386-linux-gnu/libtinfo.so.5
+
+    - name: Configure GitHub Actions Compiler Ccache
+      uses: actions/cache@v4
+      with:
+        path: ~/.ccache
+        key: ccache-aevox-11-${{ runner.os }}-${{ github.sha }}
+        restore-keys: ccache-aevox-11-${{ runner.os }}-
+
+    - name: Enforce Secure HTTPS Redirection Loops
+      run: |
+        git config --global url."https://github.com/".insteadOf "git://github.com/"
+        git config --global url."https://freedesktop.org".insteadOf "git://anongit.freedesktop.org/"
+
+    - name: Download Modern Android Source (Functional GitHub Mirror Fix)
       run: |
         git config --global user.name "Aevox OS Developer"
         git config --global user.email "developer@aevox.internal"
-        repo init -u https://osdn.net -b android-9.0-r2 --depth=1
-        repo sync -c -j$(nproc) --no-tags --no-clone-bundle --force-sync
+        # Explicitly targets our dedicated execution directory path binary
+        ~/bin/repo init -u https://github.com -b android-11.0-r2 --depth=1
+        ~/bin/repo sync -c -j$(nproc) --no-tags --no-clone-bundle --force-sync
 
-    - name: Strip Android Bloatware & Inject Light Optimizations
+    - name: Inject Luxury Branding & Visual Enhancements
       run: |
         sed -i 's/Android-x86/Aevox OS/g' bootable/newinstaller/initrd/init
         sed -i 's/Android-x86/Aevox OS/g' bootable/newinstaller/install.sh
-        
-        rm -rf packages/apps/WallpaperPicker
-        rm -rf packages/apps/LiveWallpapersPicker
-        rm -rf packages/apps/Gallery2
-        rm -rf packages/apps/Music
-        rm -rf packages/apps/Calendar
-        rm -rf packages/apps/Email
-        rm -rf packages/services/BuiltInPrintService
         
         mkdir -p vendor/aevox/overlay/frameworks/base/core/res/res/values
         cat <<EOF > vendor/aevox/overlay/frameworks/base/core/res/res/values/config.xml
         <resources>
             <bool name="config_enableHardwareAcceleration">true</bool>
-            <integer name="config_longPressOnHomeBehavior">0</integer>
-            <string name="config_defaultWallpaperComponent">none</string>
-            <bool name="config_disableTransitionAnimation">true</bool>
-            <bool name="config_hasSystemApps">false</bool>
+            <bool name="config_disableTransitionAnimation">false</bool>
+            <bool name="config_supportsMultiWindow">true</bool>
+            <bool name="config_hasSystemApps">true</bool>
+            <bool name="config_sf_limitedAlpha">false</bool>
+            <bool name="config_isLargeScreen">true</bool>
         </resources>
         EOF
 
-    - name: Compile Ultra-Light Android ISO
+    - name: Compile Premium Luxury Android 11 ISO
       run: |
         export USE_CCACHE=1
         export CCACHE_DIR=~/.ccache
         ccache -M 30G
         
         source build/envsetup.sh
-        lunch android_x86_64-user
+        lunch android_x86_64-userdebug
         
-        export ISO_CMDS="mksquashfs -comp lzo"
+        export ISO_CMDS="mksquashfs"
         m -j$(nproc) iso_img
         
-        mv out/target/product/x86_64/*.iso out/target/product/x86_64/aevox-os-light.iso
+        mv out/target/product/x86_64/*.iso out/target/product/x86_64/aevox-os-luxury-11.iso
 
-    - name: Upload Finished Aevox OS ISO
-      uses: actions/upload-artifact@v4 # Uses Node 24 natively
+    - name: Upload Premium Aevox OS ISO
+      uses: actions/upload-artifact@v4
       with:
-        name: Aevox-OS-Light-ISO
-        path: out/target/product/x86_64/aevox-os-light.iso
+        name: Aevox-OS-Luxury-11-ISO
+        path: out/target/product/x86_64/aevox-os-luxury-11.iso
         if-no-files-found: error
         retention-days: 3
