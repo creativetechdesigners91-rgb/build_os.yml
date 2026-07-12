@@ -1,37 +1,46 @@
-name: Build Aevox OS (Blazing Fast Edition)
+name: Build Aevox OS (build_os.yml Edition)
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-aevox-fast:
+  build-aevox-light:
     runs-on: ubuntu-24.04
     
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Free Disk Space (Fixes Premature Kernel Error)
+    - name: Free Disk Space
       run: |
         sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc "/usr/local/share/boost" /usr/share/swift
         sudo docker image prune --all --force
         df -h
 
-    - name: Install Android Dependencies
+    - name: Configure 32-Bit Architecture & Legacy Repos
+      # Dynamically maps legacy Ubuntu archives into Ubuntu 24.04 for structural AOSP compatibility
+      run: |
+        sudo dpkg --add-architecture i386
+        echo "deb http://ubuntu.com focal-security main universe" | sudo tee /etc/apt/sources.list.d/focal-security.list
+        sudo apt-get update
+
+    - name: Install Android Dependencies (Ubuntu 24.04 Fixed)
       run: |
         sudo apt-get update
+        # Replaced modern missing packets with localized version-mapped equivalents
         sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib \
-          gcc-multilib git gnupg gperf lib32ncurses5-dev lib32readline-dev \
-          lib32z1-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev \
+          gcc-multilib git gnupg gperf lib32readline-dev \
+          lib32z1-dev liblz4-tool libncurses-dev libsdl1.2-dev \
           libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool \
-          squashfs-tools xsltproc zip zlib1g-dev xorriso genisoimage
+          squashfs-tools xsltproc zip zlib1g-dev xorriso genisoimage \
+          libncurses5:i386 libncurses5 libtinfo5:i386 libtinfo5
 
     - name: Configure GitHub Actions Compiler Ccache
       uses: actions/cache@v4
       with:
         path: ~/.ccache
-        key: ccache-aevox-${{ runner.os }}-${{ github.sha }}
-        restore-keys: ccache-aevox-${{ runner.os }}-
+        key: ccache-aevox-light-${{ runner.os }}-${{ github.sha }}
+        restore-keys: ccache-aevox-light-${{ runner.os }}-
 
     - name: Configure Google Repo Tool
       run: |
@@ -40,59 +49,55 @@ jobs:
         chmod a+x ~/bin/repo
         echo "$HOME/bin" >> $GITHUB_PATH
 
-    - name: Download Aevox OS Source (Shallow Clone)
+    - name: Download Android Source (Shallow Clone)
       run: |
         git config --global user.name "Aevox OS Developer"
         git config --global user.email "developer@aevox.internal"
-        repo init -u https://osdn.net -b android-11.0-r2 --depth=1
-        repo sync -c -j$(nproc) --no-tags --no-clone-bundle
+        repo init -u https://osdn.net -b android-9.0-r2 --depth=1
+        repo sync -c -j$(nproc) --no-tags --no-clone-bundle --force-sync
 
-    - name: Inject Custom Branding & Speed Tweaks
+    - name: Strip Android Bloatware & Inject Light Optimizations
       run: |
-        # 1. Rename bootloader options and system menus to Aevox OS
         sed -i 's/Android-x86/Aevox OS/g' bootable/newinstaller/initrd/init
         sed -i 's/Android-x86/Aevox OS/g' bootable/newinstaller/install.sh
         
-        # 2. Force Hardware Rendering, remove animations, and disable sluggish background telemetry
+        rm -rf packages/apps/WallpaperPicker
+        rm -rf packages/apps/LiveWallpapersPicker
+        rm -rf packages/apps/Gallery2
+        rm -rf packages/apps/Music
+        rm -rf packages/apps/Calendar
+        rm -rf packages/apps/Email
+        rm -rf packages/services/BuiltInPrintService
+        
         mkdir -p vendor/aevox/overlay/frameworks/base/core/res/res/values
         cat <<EOF > vendor/aevox/overlay/frameworks/base/core/res/res/values/config.xml
         <resources>
             <bool name="config_enableHardwareAcceleration">true</bool>
             <integer name="config_longPressOnHomeBehavior">0</integer>
             <string name="config_defaultWallpaperComponent">none</string>
-            <bool name="config_sf_limitedAlpha">false</bool>
-            <integer name="config_lowBatteryWarningLevel">5</integer>
+            <bool name="config_disableTransitionAnimation">true</bool>
+            <bool name="config_hasSystemApps">false</bool>
         </resources>
         EOF
 
-    - name: Strip Bloatware to Speed Up Compilation
-      run: |
-        # Deletes heavy source packages not needed on a blazing fast laptop OS
-        rm -rf packages/apps/WallpaperPicker
-        rm -rf packages/apps/LiveWallpapersPicker
-        rm -rf packages/services/BuiltInPrintService
-
-    - name: Compile High-Speed ISO (LZO Compressed)
+    - name: Compile Ultra-Light Android ISO
       run: |
         export USE_CCACHE=1
         export CCACHE_DIR=~/.ccache
         ccache -M 30G
         
         source build/envsetup.sh
-        # "-user" target completely removes sluggish background debugging tools
         lunch android_x86_64-user
         
-        # "lzo" compression decompresses up to 4x faster during laptop startup than standard zip/xz
         export ISO_CMDS="mksquashfs -comp lzo"
         m -j$(nproc) iso_img
         
-        # Package output directly with the Aevox OS moniker
-        mv out/target/product/x86_64/*.iso out/target/product/x86_64/aevox-os-blazing-fast.iso
+        mv out/target/product/x86_64/*.iso out/target/product/x86_64/aevox-os-light.iso
 
     - name: Upload Finished Aevox OS ISO
       uses: actions/upload-artifact@v4
       with:
-        name: Aevox-OS-Blazing-Fast-ISO
-        path: out/target/product/x86_64/aevox-os-blazing-fast.iso
+        name: Aevox-OS-Light-ISO
+        path: out/target/product/x86_64/aevox-os-light.iso
         if-no-files-found: error
         retention-days: 3
