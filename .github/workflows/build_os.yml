@@ -26,7 +26,7 @@ jobs:
 
       - name: 4. Build Custom Aevox OS Desktop File System
         run: |
-          mkdir rootfs
+          mkdir -p rootfs/etc
           echo "Welcome to Aevox OS - Premium High-Performance Desktop Interface" > rootfs/etc/issue
           echo "Aevox OS Beta v1.0" > rootfs/etc/aevox-version
           # Compress the custom configuration into a live system drive
