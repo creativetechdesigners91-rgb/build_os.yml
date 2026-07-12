@@ -11,10 +11,10 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Install ISO Modification Tools
+    - name: Install Advanced ISO Modification Tools
       run: |
         sudo apt-get update
-        sudo apt-get install -y xorriso genisoimage sed curl
+        sudo apt-get install -y xorriso sed curl
 
     - name: Download High-Speed Stable Android Base
       run: |
@@ -40,13 +40,20 @@ jobs:
           sed -i 's/quiet/quiet DATA= config_enableHardwareAcceleration=true config_supportsMultiWindow=true config_isLargeScreen=true/g' iso_extracted/boot/grub/grub.cfg
         fi
 
-    - name: Rebuild Branded Aevox Luxury ISO (Fixed Path Mapping)
+    - name: Rebuild Branded Aevox Luxury ISO (Using Advanced Xorriso Engine)
+      # Swapped the old genisoimage engine out for native xorriso mapping to completely bypass boot catalog directory blocks
       run: |
-        # Stripped the incorrect 'boot/' paths so genisoimage can map isolinux flawlessly
-        mkisofs -V "AEVOX_OS" -R -b isolinux/isolinux.bin -c isolinux/boot.cat \
+        xorriso -as mkisofs \
+          -V "AEVOX_OS" \
+          -r -J --joliet-long \
+          -b isolinux/isolinux.bin \
+          -c isolinux/boot.cat \
           -no-emul-boot -boot-load-size 4 -boot-info-table \
-          -eltorito-alt-boot -e boot/grub/efi.img -no-emul-boot \
-          -o aevox-os-luxury-11.iso iso_extracted/
+          -eltorito-alt-boot \
+          -e boot/grub/efi.img \
+          -no-emul-boot \
+          -o aevox-os-luxury-11.iso \
+          iso_extracted/
 
     - name: Upload Finished Aevox OS Masterpiece
       uses: actions/upload-artifact@v4
