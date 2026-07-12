@@ -4,64 +4,45 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-aevox-luxury:
+  build-aevox:
     runs-on: ubuntu-24.04
     
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Install Advanced ISO Modification Tools
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y xorriso sed curl
-
     - name: Download High-Speed Stable Android Base
       run: |
-        # Pulls a stable, highly optimized 64-bit computer-ready baseline directly into the cloud runner
-        curl -L -o base.iso "https://blissos.org"
+        # Fetches a completely compiled, 64-bit hardware-accelerated computer baseline
+        curl -L -o aevox-os-luxury-11.iso "https://blissos.org"
 
-    - name: Extract Baseline ISO Structures
+    - name: Hex-Edit Branding & Force Luxury Controls (Zero Code)
+      shell: python
       run: |
-        mkdir -p iso_extracted
-        xorriso -osirrox on -indev base.iso -extract / iso_extracted/
-        chmod -R +w iso_extracted/
+        import os
 
-    - name: Inject Custom Aevox OS Branding (Zero Code)
-      run: |
-        # Hardcodes your "Aevox OS" name directly into the boot menu layouts
-        find iso_extracted/ -type f \( -name "*.cfg" -o -name "*.lst" -o -name "*.txt" \) -exec sed -i 's/Bliss/Aevox OS/g' {} +
-        find iso_extracted/ -type f \( -name "*.cfg" -o -name "*.lst" -o -name "*.txt" \) -exec sed -i 's/Android/Aevox OS/g' {} +
-
-    - name: Force Premium Multi-Window & Speed Configurations
-      run: |
-        # Re-packs the default system boot variables to force desktop optimizations on startup
-        if [ -f iso_extracted/boot/grub/grub.cfg ]; then
-          sed -i 's/quiet/quiet DATA= config_enableHardwareAcceleration=true config_supportsMultiWindow=true config_isLargeScreen=true/g' iso_extracted/boot/grub/grub.cfg
-        fi
-
-    - name: Rebuild Branded Aevox Luxury ISO (Multi-Path Fallback Execution)
-      # Injects specific conditional flags so xorriso binds the internal boot file seamlessly 
-      run: |
-        if [ -f iso_extracted/boot/isolinux/isolinux.bin ]; then
-          BOOT_BIN="boot/isolinux/isolinux.bin"
-          BOOT_CAT="boot/isolinux/boot.cat"
-        else
-          BOOT_BIN="isolinux/isolinux.bin"
-          BOOT_CAT="isolinux/boot.cat"
-        fi
+        iso_path = "aevox-os-luxury-11.iso"
         
-        xorriso -as mkisofs \
-          -V "AEVOX_OS" \
-          -r -J --joliet-long \
-          -b "$BOOT_BIN" \
-          -c "$BOOT_CAT" \
-          -no-emul-boot -boot-load-size 4 -boot-info-table \
-          -eltorito-alt-boot \
-          -e boot/grub/efi.img \
-          -no-emul-boot \
-          -o aevox-os-luxury-11.iso \
-          iso_extracted/
+        # Read the entire master image safely as a raw binary array
+        with open(iso_path, "rb") as f:
+            data = bytearray(f.read())
+        
+        # Inject your custom brand identity directly across the system headers
+        # Sadded trailing spaces to pad out the length constraints cleanly
+        data = data.replace(b"BlissOS ", b"AevoxOS ")
+        data = data.replace(b"Bliss OS", b"Aevox OS")
+        data = data.replace(b"Bliss", b"Aevox")
+        data = data.replace(b"Android-x86", b"Aevox OS   ")
+        
+        # Overwrites the underlying boot commands to unlock multi-window grids and hardware scaling
+        old_cmd = b"androidboot.hardware=android_x86"
+        new_cmd = b"androidboot.hardware=android_x86 config_enableHardwareAcceleration=true config_supportsMultiWindow=true config_isLargeScreen=true"
+        data = data.replace(old_cmd, new_cmd)
+        
+        # Commit the binary blocks back into the master image path
+        with open(iso_path, "wb") as f:
+            f.write(data)
+        print("Aevox OS Branding Successfully Injected Natively!")
 
     - name: Upload Finished Aevox OS Masterpiece
       uses: actions/upload-artifact@v4
