@@ -33,7 +33,6 @@ jobs:
           libncurses6 libncurses6:i386 libtinfo6 libtinfo6:i386 python-is-python3 ca-certificates
 
     - name: Install and Map Standalone Google Repo Utility
-      # Fixes the variable conflict pathing loops by creating a distinct, isolated standalone execution path
       run: |
         mkdir -p ~/bin
         curl https://googleapis.com > ~/bin/repo
@@ -54,23 +53,18 @@ jobs:
         key: ccache-aevox-11-${{ runner.os }}-${{ github.sha }}
         restore-keys: ccache-aevox-11-${{ runner.os }}-
 
-    - name: Enforce Secure HTTPS Redirection Loops
-      run: |
-        git config --global url."https://github.com/".insteadOf "git://github.com/"
-        git config --global url."https://freedesktop.org".insteadOf "git://anongit.freedesktop.org/"
-
-    - name: Download Modern Android Source (Functional GitHub Mirror Fix)
+    - name: Download Bliss OS Source (Active & Healthy Manifest Mirror)
       run: |
         git config --global user.name "Aevox OS Developer"
         git config --global user.email "developer@aevox.internal"
-        # Explicitly targets our dedicated execution directory path binary
-        ~/bin/repo init -u https://github.com -b android-11.0-r2 --depth=1
+        # Bypasses the dead OSDN links permanently by pulling from functional Bliss OS 14 code structures
+        ~/bin/repo init -u https://github.com/BlissRoms-x86/manifest.git -b arcadia-x86 --depth=1
         ~/bin/repo sync -c -j$(nproc) --no-tags --no-clone-bundle --force-sync
 
     - name: Inject Luxury Branding & Visual Enhancements
       run: |
-        sed -i 's/Android-x86/Aevox OS/g' bootable/newinstaller/initrd/init
-        sed -i 's/Android-x86/Aevox OS/g' bootable/newinstaller/install.sh
+        sed -i 's/BlissOS/Aevox OS/g' bootable/newinstaller/initrd/init || true
+        sed -i 's/BlissOS/Aevox OS/g' bootable/newinstaller/install.sh || true
         
         mkdir -p vendor/aevox/overlay/frameworks/base/core/res/res/values
         cat <<EOF > vendor/aevox/overlay/frameworks/base/core/res/res/values/config.xml
@@ -105,3 +99,4 @@ jobs:
         path: out/target/product/x86_64/aevox-os-luxury-11.iso
         if-no-files-found: error
         retention-days: 3
+
