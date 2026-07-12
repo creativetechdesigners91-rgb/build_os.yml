@@ -22,16 +22,16 @@ jobs:
         sudo dpkg --add-architecture i386
         sudo apt-get update
 
-    - name: Install Android Dependencies (Ubuntu 24.04 Verified)
+    - name: Install Android Dependencies & Repo Tool (Ubuntu 24.04 Native)
       run: |
         sudo apt-get update
-        # Added python-is-python3 explicitly to map Android 11 script parameters seamlessly
+        # Added native 'repo' package to bypass the broken curl download step completely
         sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib \
           gcc-multilib git gnupg gperf lib32readline-dev \
           lib32z1-dev liblz4-tool libncurses-dev libsdl1.2-dev \
           libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool \
           squashfs-tools xsltproc zip zlib1g-dev xorriso genisoimage \
-          libncurses6 libncurses6:i386 libtinfo6 libtinfo6:i386 python-is-python3
+          libncurses6 libncurses6:i386 libtinfo6 libtinfo6:i386 python-is-python3 repo
 
     - name: Link Legacy Android Compiler Symlinks (Fixed Absolute Paths)
       run: |
@@ -47,14 +47,9 @@ jobs:
         key: ccache-aevox-11-${{ runner.os }}-${{ github.sha }}
         restore-keys: ccache-aevox-11-${{ runner.os }}-
 
-    - name: Configure Google Repo Tool & Force HTTPS Rewrites
+    - name: Enforce Secure HTTPS Redirection Loops
       run: |
-        mkdir -p ~/bin
-        curl https://googleapis.com > ~/bin/repo
-        chmod a+x ~/bin/repo
-        echo "$HOME/bin" >> $GITHUB_PATH
-        
-        # Enforces absolute security pathing loops to bypass legacy git:// protocol blocks
+        # Forces the local compiler environment to use secure web tunnels over old unencrypted git keys
         git config --global url."https://github.com/".insteadOf "git://github.com/"
         git config --global url."https://freedesktop.org".insteadOf "git://anongit.freedesktop.org/"
 
@@ -62,8 +57,8 @@ jobs:
       run: |
         git config --global user.name "Aevox OS Developer"
         git config --global user.email "developer@aevox.internal"
-        # Targets the higher Android 11.0 manifest with strict structural depth parameters
-        repo init -u https://osdn.net/projects/android-x86/scm/git/manifest -b android-11.0-r2 --depth=1
+        # Calls the natively installed system repo tool directly
+        repo init -u https://osdn.net -b android-11.0-r2 --depth=1
         repo sync -c -j$(nproc) --no-tags --no-clone-bundle --force-sync
 
     - name: Inject Luxury Branding & Visual Enhancements
